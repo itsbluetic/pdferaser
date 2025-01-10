@@ -1,13 +1,13 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-import PyPDF2
+import pikepdf
 import os
 
 class PDFEraser:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("PDF 마지막 페이지 삭제 프로그램")
-        self.root.geometry("600x350")  # 높이를 약간 늘림
+        self.root.geometry("600x350")
         
         # 스타일 설정
         self.style = ttk.Style()
@@ -17,7 +17,7 @@ class PDFEraser:
         self.pdf_path_var = tk.StringVar()
         self.status_var = tk.StringVar()
         self.status_var.set("PDF 파일을 선택해주세요")
-        self.rename_var = tk.BooleanVar(value=True)  # 파일명 수정 체크박스 변수
+        self.rename_var = tk.BooleanVar(value=True)
         
         self._create_widgets()
         
@@ -103,56 +103,41 @@ class PDFEraser:
             
         try:
             # PDF 파일 열기
-            with open(pdf_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
-                page_count = len(reader.pages)
-                
-                # 페이지 수 확인
-                if page_count <= 1:
-                    messagebox.showwarning(
-                        "경고", 
-                        "PDF가 1페이지 이하입니다. 삭제할 수 없습니다."
-                    )
-                    return
-                
-                # 새 PDF 생성
-                writer = PyPDF2.PdfWriter()
-                
-                # 페이지 복사 (마지막 페이지 제외)
-                for i in range(page_count - 1):
-                    writer.add_page(reader.pages[i])
-                
-                # 메타데이터 복사
-                if reader.metadata:
-                    writer.add_metadata(reader.metadata)
-                    
-                # 아웃라인(목차) 복사
-                try:
-                    outlines = reader.outline
-                    if outlines:
-                        writer.add_outline(outlines)
-                except Exception as e:
-                    print(f"목차 복사 중 오류: {str(e)}")
-                
-                # 저장할 파일명 생성
-                file_dir = os.path.dirname(pdf_path)
-                file_name = os.path.basename(pdf_path)
-                new_name = self.process_filename(file_name)
-                save_path = os.path.join(file_dir, new_name)
-                
-                # 새 PDF 저장
-                with open(save_path, 'wb') as output:
-                    writer.write(output)
-                
-                self.status_var.set("마지막 페이지 삭제 완료!")
-                messagebox.showinfo(
-                    "완료", 
-                    f"새 PDF가 저장되었습니다:\n{save_path}"
+            pdf = pikepdf.Pdf.open(pdf_path)
+            
+            # 페이지 수 확인
+            if len(pdf.pages) <= 1:
+                messagebox.showwarning(
+                    "경고", 
+                    "PDF가 1페이지 이하입니다. 삭제할 수 없습니다."
                 )
+                pdf.close()
+                return
+            
+            # 마지막 페이지 삭제
+            del pdf.pages[-1]
+            
+            # 저장할 파일명 생성
+            file_dir = os.path.dirname(pdf_path)
+            file_name = os.path.basename(pdf_path)
+            new_name = self.process_filename(file_name)
+            save_path = os.path.join(file_dir, new_name)
+            
+            # 새 PDF 저장 (모든 메타데이터 유지)
+            pdf.save(save_path)
+            
+            self.status_var.set("마지막 페이지 삭제 완료!")
+            messagebox.showinfo(
+                "완료", 
+                f"새 PDF가 저장되었습니다:\n{save_path}"
+            )
                 
         except Exception as e:
             messagebox.showerror("오류", f"PDF 처리 중 오류가 발생했습니다:\n{str(e)}")
             self.status_var.set("오류가 발생했습니다")
+        finally:
+            if 'pdf' in locals():
+                pdf.close()
 
     def run(self):
         """프로그램 실행"""
